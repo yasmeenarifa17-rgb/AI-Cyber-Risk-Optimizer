@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>AI Cyber Risk Dashboard</title>
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <header class="page-header">
+        <div class="header-content">
+            <div>
+                <p class="project-label">SIH26105</p>
+                <h1>AI Cyber Risk Quantification</h1>
+                <p class="subtitle">
+                    Cyber Risk • Financial Risk • Investment Optimization
+                </p>
+            </div>
+
+            <div class="status">
+                <span class="status-dot"></span>
+                System Active
+            </div>
+        </div>
+    </header>
+
+
+    <main class="container">
+
+        <!-- =========================
+             RISK SCORE CARDS
+        ========================== -->
+
+        <section class="section">
+
+            <div class="section-header">
+                <div>
+                    <h2>Risk Overview</h2>
+                    <p>Current cybersecurity risk assessment</p>
+                </div>
+            </div>
+
+            <div id="riskCards" class="risk-grid"></div>
+
+        </section>
+
+
+        <!-- =========================
+             ASSET / VULNERABILITY TABLE
+        ========================== -->
+
+        <section class="section">
+
+            <div class="section-header">
+                <div>
+                    <h2>Asset & Vulnerability Analysis</h2>
+                    <p>Identified vulnerabilities and estimated financial impact</p>
+                </div>
+            </div>
+
+            <div class="table-container">
+
+                <table>
+
+                    <thead>
+                        <tr>
+                            <th>Asset Name</th>
+                            <th>Vulnerability</th>
+                            <th>Severity</th>
+                            <th>Risk Score</th>
+                            <th>Estimated Financial Loss</th>
+                        </tr>
+                    </thead>
+
+                    <tbody id="assetTable">
+                    </tbody>
+
+                </table>
+
+            </div>
+
+        </section>
+
+
+        <!-- =========================
+             FINANCIAL RISK
+        ========================== -->
+
+        <section class="section">
+
+            <div class="section-header">
+                <div>
+                    <h2>Financial Risk</h2>
+                    <p>Estimated financial exposure from cybersecurity threats</p>
+                </div>
+            </div>
+
+            <div id="financialCards" class="financial-grid"></div>
+
+        </section>
+
+
+        <!-- =========================
+             AI RECOMMENDATION
+        ========================== -->
+
+        <section class="section">
+
+            <div class="section-header">
+                <div>
+                    <h2>AI Security Recommendation</h2>
+                    <p>Recommended action based on current risk analysis</p>
+                </div>
+            </div>
+
+            <div id="recommendationCard"></div>
+
+        </section>
+
+    </main>
+
+
+    <footer>
+        <p>AI Cyber Risk Quantification • SIH26105</p>
+    </footer>
+
+
+    <script src="script.js"></script>
+
+</body>
+</html>
