@@ -21,9 +21,16 @@ from auth.database import get_db
 
 router = APIRouter()
 
-HF_TOKEN = os.getenv("HF_API_TOKEN", "")
-HF_MODEL = os.getenv("HF_MODEL", "mistralai/Mixtral-8x7B-Instruct-v0.1")
-HF_URL = f"https://api-inference.huggingface.co/models/{HF_MODEL}"
+# Read lazily so load_dotenv() in main.py runs first
+def _hf_token() -> str:
+    return os.getenv("HF_API_TOKEN", "")
+
+def _hf_model() -> str:
+    return os.getenv("HF_MODEL", "mistralai/Mixtral-8x7B-Instruct-v0.1")
+
+def _hf_url() -> str:
+    return f"https://api-inference.huggingface.co/models/{_hf_model()}"
+
 
 SYSTEM_PROMPT = """You are a cybersecurity assistant for an AI Cyber Risk Optimizer platform used by organisations.
 You help security teams understand their risk scores, financial exposure, and what actions to take.
@@ -56,7 +63,8 @@ def _build_prompt(message: str, org_context: str) -> str:
 
 @router.post("/api/chat")
 async def chat(req: ChatRequest, current_user: dict = Depends(require_auth)):
-    if not HF_TOKEN:
+    token = _hf_token()
+    if not token:
         raise HTTPException(
             status_code=503,
             detail="AI assistant not configured. Set HF_API_TOKEN environment variable.",
@@ -86,9 +94,9 @@ async def chat(req: ChatRequest, current_user: dict = Depends(require_auth)):
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
-                HF_URL,
+                _hf_url(),
                 json=payload,
-                headers={"Authorization": f"Bearer {HF_TOKEN}"},
+                headers={"Authorization": f"Bearer {token}"},
             )
             response.raise_for_status()
             data = response.json()
