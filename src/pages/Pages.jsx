@@ -128,7 +128,8 @@ function ChatPanel() {
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 
-export function Dashboard({ navigate, firstName = 'there', orgName = 'your organisation' }) {
+// eslint-disable-next-line no-unused-vars
+export function Dashboard({ navigate, firstName = 'there', orgName = 'your organisation', greet = 'Good morning', pushNotification }) {
   const { assets, budget, optimizedResult, appliedControls } = useAppState()
   const exposure = totalExposure(assets)
   const simulated = simulateInvestment(appliedControls, organizationSummary.baselineRisk, exposure)
@@ -139,7 +140,7 @@ export function Dashboard({ navigate, firstName = 'there', orgName = 'your organ
     <>
       <PageTitle
         eyebrow={`${dateStr}  •  Live posture`}
-        title={`Good morning, ${firstName}.`}
+        title={`${greet}, ${firstName}.`}
         copy={`${orgName} — cyber risk and investment overview.`}
         action={<button className="primary-button" type="button" onClick={() => navigate('optimizer')}><Target size={16} /> Optimize budget</button>}
       />
@@ -235,7 +236,7 @@ function assetToRiskPayload(asset) {
   }
 }
 
-export function RiskAssessment() {
+export function RiskAssessment({ pushNotification }) {
   const { assets, selectedAsset: selected, setSelectedAssetId } = useAppState()
   const [filter, setFilter] = useState('All')
   const [sortDescending, setSortDescending] = useState(true)
@@ -264,6 +265,11 @@ export function RiskAssessment() {
     try {
       const result = await calculateRisk(assetToRiskPayload(selected))
       setApiResult(result)
+      pushNotification?.({
+        tone: result.risk_level === 'Critical' || result.risk_level === 'High' ? 'red' : 'amber',
+        title: `Risk assessment complete: ${selected.name}`,
+        body: `Live score: ${result.risk_score}/100 — ${result.risk_level}`,
+      })
     } catch (err) {
       setApiError(err.message)
     } finally {
@@ -385,13 +391,12 @@ export function RiskAssessment() {
 
 // ── Financial Risk ────────────────────────────────────────────────────────────
 
-export function FinancialRisk() {
+export function FinancialRisk({ pushNotification }) {
   const { assets, selectedAsset: selected, selectedAssetId, setSelectedAssetId } = useAppState()
   const [apiResult, setApiResult] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
-  // Auto-calculate when selected asset changes
   const runCalc = useCallback(async (asset) => {
     setLoading(true)
     setError(null)
@@ -400,16 +405,21 @@ export function FinancialRisk() {
       const localRiskScore = riskScore(asset)
       const result = await calculateFinancialRisk(
         localRiskScore,
-        asset.impact * 100000,     // convert lakhs → absolute value for the engine
+        asset.impact * 100000,
         Math.round(asset.probability * 100)
       )
       setApiResult(result)
+      pushNotification?.({
+        tone: 'amber',
+        title: 'Financial exposure calculated',
+        body: `${asset.name}: expected annual loss updated from engine.`,
+      })
     } catch (err) {
       setError(err.message)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [pushNotification])
 
   useEffect(() => { runCalc(selected) }, [selected, runCalc])
 
@@ -470,7 +480,7 @@ export function FinancialRisk() {
 
 // ── Recommendations ───────────────────────────────────────────────────────────
 
-export function Recommendations({ navigate }) {
+export function Recommendations({ navigate, pushNotification }) {
   const { recommendations: mockRecs, markedRecommendationIds, toggleRecommendation } = useAppState()
   const [apiRecs, setApiRecs] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -480,9 +490,13 @@ export function Recommendations({ navigate }) {
     setLoading(true)
     setError(null)
     try {
-      // Use worst-case asset parameters to get the most relevant recommendations
       const data = await fetchRecommendations(80, 95, 90, 85)
       setApiRecs(data.recommendations)
+      pushNotification?.({
+        tone: 'green',
+        title: 'Security recommendations ready',
+        body: `Engine returned ${data.recommendations.length} prioritised action${data.recommendations.length !== 1 ? 's' : ''}.`,
+      })
     } catch (err) {
       setError(err.message)
       setApiRecs(null)
@@ -547,7 +561,7 @@ export function Recommendations({ navigate }) {
 
 // ── Investment Optimizer ──────────────────────────────────────────────────────
 
-export function InvestmentOptimizer() {
+export function InvestmentOptimizer({ pushNotification }) {
   const { recommendations, budget, setBudget, optimizedResult, applyOptimizedPlan } = useAppState()
   const [apiResult, setApiResult] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -557,8 +571,13 @@ export function InvestmentOptimizer() {
     setLoading(true)
     setError(null)
     try {
-      const result = await optimizeInvestment(budget * 100000)  // lakhs → absolute
+      const result = await optimizeInvestment(budget * 100000)
       setApiResult(result)
+      pushNotification?.({
+        tone: 'green',
+        title: 'Investment optimization complete',
+        body: `Engine selected ${result.selected_controls?.length ?? 0} controls, reducing risk by ${result.estimated_risk_reduction ?? 0} pts.`,
+      })
     } catch (err) {
       setError(err.message)
       setApiResult(null)
@@ -637,7 +656,7 @@ export function InvestmentOptimizer() {
 
 // ── Simulation ────────────────────────────────────────────────────────────────
 
-export function Simulation() {
+export function Simulation({ pushNotification }) {
   const { assets, recommendations, appliedControlIds, applyOptimizedPlan, toggleAppliedControl } = useAppState()
   const selectedControls = recommendations.filter((item) => appliedControlIds.includes(item.id))
   const baselineLoss = totalExposure(assets)
@@ -656,9 +675,14 @@ export function Simulation() {
       const result = await runSimulation(
         organizationSummary.baselineRisk,
         totalInvestment,
-        0.5   // reduction_factor: each lakh invested reduces risk by 0.5 points
+        0.5
       )
       setApiResult(result)
+      pushNotification?.({
+        tone: 'green',
+        title: 'Risk simulation complete',
+        body: `Projected risk reduced to ${result.new_risk}/100 with selected controls.`,
+      })
     } catch (err) {
       setError(err.message)
     } finally {
