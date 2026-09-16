@@ -10,6 +10,7 @@ from engines.recommendation_engine import generate_recommendations
 from engines.optimization_engine import optimize_investment
 from engines.simulation_engine import simulate_risk_reduction
 from auth.routes import router as auth_router
+from auth.assessment_routes import router as assessment_router
 from chat.chat_router import router as chat_router
 from auth.database import connect_db, close_db
 
@@ -49,6 +50,7 @@ async def shutdown():
 # ── Routers ──────────────────────────────────────────────────────────────────
 
 app.include_router(auth_router)
+app.include_router(assessment_router)
 app.include_router(chat_router)
 
 # ── Existing engine endpoints (unchanged) ────────────────────────────────────
@@ -59,8 +61,9 @@ def root():
 
 
 @app.get("/health")
-def health():
-    return {"status": "healthy"}
+async def health():
+    from auth.database import is_demo_mode
+    return {"status": "healthy", "demo_mode": is_demo_mode()}
 
 
 @app.post("/api/risk/calculate")
@@ -97,7 +100,11 @@ def recommendations(data: dict):
 
 @app.post("/api/optimize-investment")
 def investment_optimization(data: dict):
-    return optimize_investment(data["budget"])
+    return optimize_investment(
+        data["budget"],
+        data.get("available_controls"),
+        data.get("current_risk"),
+    )
 
 
 @app.post("/api/simulate")

@@ -13,16 +13,28 @@ Endpoints:
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from passlib.context import CryptContext
+import bcrypt as _bcrypt
+import httpx
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel, EmailStr
 
 from .database import get_db
 from .dependencies import require_auth
+from .firebase_tokens import FirebaseTokenError, verify_firebase_id_token
 from .tokens import create_access_token
 
 router = APIRouter()
-pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+def _hash_password(password: str) -> str:
+    return _bcrypt.hashpw(password.encode("utf-8"), _bcrypt.gensalt()).decode("utf-8")
+
+
+def _verify_password(password: str, hashed: str) -> bool:
+    try:
+        return _bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
+    except Exception:
+        return False
 
 
 # ── Pydantic models ─────────────────────────────────────────────────────────
@@ -38,6 +50,13 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+
+
+class FirebaseSessionRequest(BaseModel):
+    name: str | None = None
+    email: EmailStr | None = None
+    organization_name: str | None = None
+    organization_type: str = "Enterprise"
 
 
 class OrgUpdateRequest(BaseModel):
@@ -93,7 +112,7 @@ async def register(req: RegisterRequest):
         "user_id": user_id,
         "name": req.name,
         "email": req.email,
-        "password_hash": pwd_ctx.hash(req.password),
+        "password_hash": _hash_password(req.password),
         "organization_id": org_id,
         "created_at": now,
     }
@@ -108,10 +127,69 @@ async def login(req: LoginRequest):
     db = get_db()
 
     user = await db.users.find_one({"email": req.email})
-    if not user or not pwd_ctx.verify(req.password, user["password_hash"]):
+    if not user or not _verify_password(req.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     org = await db.organizations.find_one({"organization_id": user["organization_id"]})
+
+    token = create_access_token({"sub": user["user_id"]})
+    return {"token": token, "user": _safe_user(user), "organization": _safe_org(org)}
+
+
+@router.post("/api/auth/firebase-session")
+async def firebase_session(
+    req: FirebaseSessionRequest,
+    authorization: str | None = Header(default=None),
+):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Firebase ID token is required")
+    try:
+        claims = await verify_firebase_id_token(authorization[7:].strip())
+    except (FirebaseTokenError, RuntimeError, httpx.HTTPError) as exc:
+        reason = getattr(exc, "reason", "Firebase project configuration error")
+        print(f"[WARN] Firebase ID token rejected: {reason}")
+        raise HTTPException(status_code=401, detail="Invalid Firebase ID token") from exc
+
+    firebase_uid = claims["sub"]
+    email = claims.get("email")
+    if not email or claims.get("firebase", {}).get("sign_in_provider") == "anonymous":
+        raise HTTPException(status_code=403, detail="An organization Firebase account is required")
+
+    db = get_db()
+    user = await db.users.find_one({"firebase_uid": firebase_uid})
+    if not user:
+        user = await db.users.find_one({"email": email})
+
+    now = datetime.now(timezone.utc).isoformat()
+    if user:
+        if user.get("firebase_uid") != firebase_uid:
+            await db.users.update_one(
+                {"user_id": user["user_id"]},
+                {"$set": {"firebase_uid": firebase_uid}},
+            )
+            user["firebase_uid"] = firebase_uid
+        org = await db.organizations.find_one({"organization_id": user["organization_id"]})
+    else:
+        if not req.organization_name:
+            raise HTTPException(status_code=409, detail="Organization profile is required for first-time recovery")
+        org_id = str(uuid.uuid4())
+        user_id = str(uuid.uuid4())
+        org = {
+            "organization_id": org_id,
+            "organization_name": req.organization_name,
+            "organization_type": req.organization_type,
+            "created_at": now,
+        }
+        user = {
+            "user_id": user_id,
+            "firebase_uid": firebase_uid,
+            "name": req.name or claims.get("name") or email,
+            "email": email,
+            "organization_id": org_id,
+            "created_at": now,
+        }
+        await db.organizations.insert_one(org)
+        await db.users.insert_one(user)
 
     token = create_access_token({"sub": user["user_id"]})
     return {"token": token, "user": _safe_user(user), "organization": _safe_org(org)}

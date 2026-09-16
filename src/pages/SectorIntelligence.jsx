@@ -21,8 +21,10 @@ const SECTOR_DATA = [
   { sector: 'Healthcare',         riskScore: 68, critical: 28, high: 48, medium: 24, trend: '↑' },
   { sector: 'Government / PSU',   riskScore: 61, critical: 19, high: 52, medium: 29, trend: '→' },
   { sector: 'IT / Technology',    riskScore: 58, critical: 22, high: 43, medium: 35, trend: '↓' },
-  { sector: 'Education',          riskScore: 52, critical: 12, high: 38, medium: 50, trend: '→' },
   { sector: 'Manufacturing',      riskScore: 47, critical: 10, high: 35, medium: 55, trend: '↓' },
+  { sector: 'Retail',             riskScore: 46, critical: 11, high: 34, medium: 55, trend: '→' },
+  { sector: 'Telecommunications', riskScore: 63, critical: 27, high: 44, medium: 29, trend: '↑' },
+  { sector: 'Energy & Utilities', riskScore: 57, critical: 18, high: 40, medium: 42, trend: '↓' },
 ]
 
 const TOP_VULNS = [

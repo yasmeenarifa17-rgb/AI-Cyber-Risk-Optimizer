@@ -1,0 +1,53 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn() && request.auth.token.admin == true;
+    }
+
+    function owns(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    match /users/{userId} {
+      allow create: if owns(userId)
+        && request.resource.data.uid == userId
+        && request.resource.data.accountType in ['organization', 'citizen']
+        && request.resource.data.role != 'admin'
+        && request.resource.data.keys().hasOnly([
+          'uid', 'fullName', 'email', 'organizationName', 'organizationType',
+          'role', 'accountType', 'createdAt'
+        ]);
+      allow read: if owns(userId) || isAdmin();
+      allow update: if owns(userId)
+        && resource.data.uid == userId
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.accountType == resource.data.accountType
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.keys().hasOnly([
+          'uid', 'fullName', 'email', 'organizationName', 'organizationType',
+          'role', 'accountType', 'createdAt'
+        ]);
+      allow delete: if isAdmin();
+
+      match /scans/{scanId} {
+        allow create: if owns(userId)
+          && request.resource.data.userId == userId
+          && request.resource.data.keys().hasOnly(['userId', 'timestamp', 'riskClassification']);
+        allow read: if owns(userId) || isAdmin();
+        allow update, delete: if isAdmin();
+      }
+    }
+
+    match /organizations/{organizationId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+  }
+}

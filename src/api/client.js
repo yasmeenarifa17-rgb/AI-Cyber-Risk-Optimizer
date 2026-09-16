@@ -4,7 +4,7 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
 async function apiFetch(path, options = {}) {
   const token = sessionStorage.getItem('auth_token')
   const headers = { 'Content-Type': 'application/json', ...(options.headers ?? {}) }
-  if (token) headers['Authorization'] = `Bearer ${token}`
+  if (token && !headers.Authorization) headers.Authorization = `Bearer ${token}`
   const res = await fetch(`${BASE_URL}${path}`, { ...options, headers })
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText)
@@ -15,17 +15,11 @@ async function apiFetch(path, options = {}) {
 
 // ── Auth ─────────────────────────────────────────────────────────────────────
 
-export async function register(name, email, password, organization_name, organization_type = 'Enterprise') {
-  return apiFetch('/api/auth/register', {
+export async function createFirebaseSession(idToken, profile = {}) {
+  return apiFetch('/api/auth/firebase-session', {
     method: 'POST',
-    body: JSON.stringify({ name, email, password, organization_name, organization_type }),
-  })
-}
-
-export async function login(email, password) {
-  return apiFetch('/api/auth/login', {
-    method: 'POST',
-    body: JSON.stringify({ email, password }),
+    headers: { Authorization: `Bearer ${idToken}` },
+    body: JSON.stringify(profile),
   })
 }
 
@@ -47,10 +41,30 @@ export async function updateOrganization(updates) {
   return apiFetch('/api/organization', { method: 'PUT', body: JSON.stringify(updates) })
 }
 
+// ── Assessment ───────────────────────────────────────────────────────────────
+
+export async function submitAssessment(data) {
+  return apiFetch('/api/assessment', { method: 'POST', body: JSON.stringify(data) })
+}
+
+export async function fetchAssessment() {
+  return apiFetch('/api/assessment')
+}
+
 // ── Chat ─────────────────────────────────────────────────────────────────────
 
-export async function sendChat(message) {
-  return apiFetch('/api/chat', { method: 'POST', body: JSON.stringify({ message }) })
+export async function sendChat(message, conversation = [], conversation_id = null) {
+  return apiFetch('/api/chat', {
+    method: 'POST',
+    body: JSON.stringify({ message, conversation, conversation_id }),
+  })
+}
+
+export async function sendCitizenChat(message, conversation = [], conversation_id = null) {
+  return apiFetch('/api/citizen/chat', {
+    method: 'POST',
+    body: JSON.stringify({ message, conversation, conversation_id }),
+  })
 }
 
 // ── Risk engine ───────────────────────────────────────────────────────────────
@@ -84,10 +98,13 @@ export async function fetchRecommendations(threat_likelihood, vulnerability_seve
 
 // ── Investment optimization ───────────────────────────────────────────────────
 
-export async function optimizeInvestment(budget) {
+export async function optimizeInvestment(budgetOrPayload) {
+  const payload = typeof budgetOrPayload === 'object'
+    ? budgetOrPayload
+    : { budget: budgetOrPayload }
   return apiFetch('/api/optimize-investment', {
     method: 'POST',
-    body: JSON.stringify({ budget }),
+    body: JSON.stringify(payload),
   })
 }
 

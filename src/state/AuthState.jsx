@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
-import { fetchMe, login as apiLogin, logout as apiLogout, register as apiRegister } from '../api/client'
+import { createFirebaseSession, fetchMe, logout as apiLogout } from '../api/client'
+import { createFirebaseOrganizationUser, ensureFirebaseOrganizationProfile, firebaseAuth, firebaseConfigured, getFirebaseIdToken, getFirebaseOrganizationProfile, onAuthStateChanged, signInFirebaseUser, signOutFirebaseUser } from '../firebase'
 
 const AuthContext = createContext(null)
 
@@ -14,32 +15,83 @@ export function AuthProvider({ children }) {
   // null = not yet checked, false = checked + unauthenticated, true = authenticated
   const [bootstrapping, setBootstrapping] = useState(true)
 
-  // On mount: if a token is stored, verify it with /api/auth/me
+  // Wait for Firebase restoration before validating the application session.
   useEffect(() => {
-    const token = sessionStorage.getItem('auth_token')
-    if (!token) { setBootstrapping(false); return }
-    fetchMe()
-      .then(({ user, organization }) => { setUser(user); setOrganization(organization) })
-      .catch(() => { sessionStorage.removeItem('auth_token') })
-      .finally(() => setBootstrapping(false))
+    let cancelled = false
+    const validateBackendSession = (firebaseUser = null) => {
+      const token = sessionStorage.getItem('auth_token')
+      if (firebaseConfigured && (!firebaseUser || firebaseUser.isAnonymous)) {
+        sessionStorage.removeItem('auth_token')
+        setUser(null)
+        setOrganization(null)
+        setBootstrapping(false)
+        return
+      }
+      if (!token) {
+        setBootstrapping(false)
+        return
+      }
+      fetchMe()
+        .then(({ user, organization }) => {
+          if (!cancelled) { setUser(user); setOrganization(organization) }
+        })
+        .catch(() => { sessionStorage.removeItem('auth_token') })
+        .finally(() => { if (!cancelled) setBootstrapping(false) })
+    }
+
+    if (!firebaseConfigured || !firebaseAuth) {
+      validateBackendSession()
+      return () => { cancelled = true }
+    }
+
+    const unsubscribe = onAuthStateChanged(firebaseAuth, firebaseUser => validateBackendSession(firebaseUser))
+    return () => {
+      cancelled = true
+      unsubscribe()
+    }
   }, [])
 
   const login = useCallback(async (email, password) => {
-    const data = await apiLogin(email, password)
+    if (!firebaseConfigured) throw new Error('Firebase is not configured. Organization login is unavailable until the Vite server is restarted with VITE_FIREBASE_* variables.')
+    sessionStorage.removeItem('auth_token')
+    const firebaseUser = await signInFirebaseUser(email, password)
+    const firebaseProfile = await getFirebaseOrganizationProfile(firebaseUser)
+    const idToken = await getFirebaseIdToken(firebaseUser)
+    const data = await createFirebaseSession(idToken, {
+      name: firebaseProfile?.fullName || firebaseUser.displayName || email,
+      email: firebaseUser.email ?? email,
+      organization_name: firebaseProfile?.organizationName,
+      organization_type: firebaseProfile?.organizationType || 'Enterprise',
+    })
+    await ensureFirebaseOrganizationProfile(firebaseUser, {
+      name: data.user?.name || firebaseUser.displayName,
+      email: data.user?.email ?? firebaseUser.email ?? email,
+      organizationName: data.organization?.organization_name,
+      organizationType: data.organization?.organization_type,
+    })
     sessionStorage.setItem('auth_token', data.token)
     setUser(data.user)
     setOrganization(data.organization)
   }, [])
 
   const register = useCallback(async (name, email, password, organization_name, organization_type) => {
-    const data = await apiRegister(name, email, password, organization_name, organization_type)
+    sessionStorage.removeItem('auth_token')
+    const firebaseUser = await createFirebaseOrganizationUser({ name, email, password, organizationName: organization_name, organizationType: organization_type })
+    const idToken = await getFirebaseIdToken(firebaseUser)
+    const data = await createFirebaseSession(idToken, {
+      name,
+      email,
+      organization_name,
+      organization_type,
+    })
     sessionStorage.setItem('auth_token', data.token)
     setUser(data.user)
     setOrganization(data.organization)
   }, [])
 
   const logout = useCallback(async () => {
-    try { await apiLogout() } catch (_) { /* ignore */ }
+    try { await apiLogout() } catch { /* ignore */ }
+    try { await signOutFirebaseUser() } catch { /* ignore */ }
     sessionStorage.removeItem('auth_token')
     setUser(null)
     setOrganization(null)

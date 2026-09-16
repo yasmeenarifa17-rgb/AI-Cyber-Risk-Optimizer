@@ -1,5 +1,5 @@
-def optimize_investment(budget):
-    controls = [
+def optimize_investment(budget, available_controls=None, current_risk=None):
+    controls = available_controls or [
         {
             "name": "Vulnerability Patching",
             "cost": 200000,
@@ -46,9 +46,12 @@ def optimize_investment(budget):
             total_cost += control["cost"]
             total_reduction += control["risk_reduction"]
 
-    return {
+    result = {
         "selected_controls": selected,
         "total_investment": total_cost,
         "remaining_budget": remaining_budget,
         "estimated_risk_reduction": total_reduction
     }
+    if current_risk is not None:
+        result["projected_risk"] = round(max(float(current_risk) - total_reduction, 0), 2)
+    return result

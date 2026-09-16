@@ -1,15 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import {
-  Activity, Bell, CheckCircle2, ChevronDown, Globe, LayoutDashboard,
+  Activity, Bell, CheckCircle2, ChevronDown, ClipboardList, LayoutDashboard,
   LogOut, Menu, Radar, Settings, ShieldCheck, SlidersHorizontal, User, X,
 } from 'lucide-react'
 import {
   Dashboard, FinancialRisk, InvestmentOptimizer,
   Recommendations, RiskAssessment, Simulation,
 } from './pages/Pages'
-import SectorIntelligence from './pages/SectorIntelligence'
+import AssessmentPage from './pages/AssessmentPage'
 import { AppStateProvider, useAppState } from './state/AppState'
 import { AuthProvider, useAuth } from './state/AuthState'
+import { AssessmentProvider, useAssessment } from './state/AssessmentState'
 import AuthPage from './pages/AuthPage'
 import './App.css'
 
@@ -20,7 +21,6 @@ const navigation = [
   { id: 'recommendations', label: 'AI Recommendations',      icon: SlidersHorizontal,group: 'Decide' },
   { id: 'optimizer',       label: 'Investment Optimizer',    icon: CheckCircle2,     group: 'Decide' },
   { id: 'simulation',      label: 'Risk Simulation',         icon: Settings,         group: 'Prove impact' },
-  { id: 'sector',          label: 'Sector Intelligence',     icon: Globe,            group: 'Prove impact' },
 ]
 
 // ── Time-aware greeting ───────────────────────────────────────────────────────
@@ -212,13 +212,14 @@ function NotificationBell({ notifications }) {
 
 // ── Main App (authenticated) ──────────────────────────────────────────────────
 
-function App() {
+function App({ onEditAssessment }) {
   const [page, setPage] = useState('dashboard')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   // Event-driven notifications: appended by page actions
   const [eventNotes, setEventNotes] = useState([])
   const { resetDemo, assets, appliedControlIds } = useAppState()
   const { user, organization, logout } = useAuth()
+  const { result: assessmentResult, assessment } = useAssessment()
 
   const navigate = (nextPage) => { setPage(nextPage); setSidebarOpen(false) }
 
@@ -255,8 +256,6 @@ function App() {
         return <InvestmentOptimizer pushNotification={pushNotification} />
       case 'simulation':
         return <Simulation pushNotification={pushNotification} />
-      case 'sector':
-        return <SectorIntelligence />
       default:
         return <Dashboard navigate={navigate} firstName={firstName} orgName={orgName} greet={greet} pushNotification={pushNotification} />
     }
@@ -267,7 +266,7 @@ function App() {
       <aside className={`sidebar ${sidebarOpen ? 'is-open' : ''}`}>
         <div className="brand">
           <div className="brand-mark"><ShieldCheck size={19} /></div>
-          <span>sentinel<span className="brand-dot">.</span></span>
+          <span>CyberRisk<span className="brand-dot"> AI</span></span>
         </div>
 
         <div className="workspace-switcher">
@@ -280,11 +279,20 @@ function App() {
         </div>
 
         <nav className="nav-list" aria-label="Main navigation">
+          {/* Edit assessment shortcut */}
+          <div>
+            <p className="nav-label">Setup</p>
+            <button className="nav-item" type="button" onClick={onEditAssessment}>
+              <ClipboardList size={17} />
+              Risk Assessment Form
+            </button>
+          </div>
           {['Monitor', 'Quantify', 'Decide', 'Prove impact'].map((group) => (
             <div key={group}>
               <p className="nav-label">{group}</p>
               {navigation.filter(item => item.group === group).map((item) => {
                 const Icon = item.icon
+                const recs = assessmentResult?.recommendations ?? []
                 return (
                   <button
                     className={`nav-item ${page === item.id ? 'active' : ''}`}
@@ -293,8 +301,8 @@ function App() {
                   >
                     <Icon size={17} />
                     {item.label}
-                    {item.id === 'assessment' && <span className="nav-count">12</span>}
-                    {item.id === 'recommendations' && <span className="nav-count warning">4</span>}
+                    {item.id === 'assessment' && <span className="nav-count">{assets.length}</span>}
+                    {item.id === 'recommendations' && recs.length > 0 && <span className="nav-count warning">{recs.length}</span>}
                   </button>
                 )
               })}
@@ -315,7 +323,7 @@ function App() {
             {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
           <div className="breadcrumbs">
-            <span>SIH26105</span><span>/</span>
+            <span>CyberRisk AI</span><span>/</span>
             <strong>{navigation.find(item => item.id === page)?.label}</strong>
           </div>
           <div className="topbar-actions">
@@ -327,13 +335,67 @@ function App() {
 
         <div className="page-wrap">
           {renderPage()}
+          <div style={{ margin: '12px 0 4px', padding: '10px 14px', border: '1px solid #263142', borderRadius: '8px', background: 'rgba(82,214,204,.04)', color: '#dfeaf7', fontSize: '11px', letterSpacing: '.3px', fontWeight: 700 }}>
+            From Cyber Threats to Business Decisions
+          </div>
           <footer className="page-footer">
-            <span><span className="health-dot"></span>CyberRisk AI · Risk Engine Active</span>
-            <button className="refresh-button" type="button" onClick={resetDemo}>Reset workspace</button>
+            <span>
+              <span className="health-dot"></span>CyberRisk AI · Risk Engine Active
+              {assessmentResult && (
+                <span style={{ marginLeft: '12px', color: '#52d6cc', fontSize: '10px' }}>
+                  · Risk score: {assessmentResult.risk_score}/100 ({assessmentResult.risk_level})
+                </span>
+              )}
+              {assessment && (
+                <span style={{ marginLeft: '10px', color: '#57687a', fontSize: '10px' }}>
+                  · {assessment.sector} · {assessment.org_size}
+                </span>
+              )}
+            </span>
+            <span style={{ color: '#8290a4', fontSize: '10px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <span>
+                Need Help or Have Feedback? CyberRisk AI Support · Developed by Arifa Yasmeen · Contact:{' '}
+                <a href="mailto:yasmeenarifa17@gmail.com" style={{ color: '#52d6cc' }}>yasmeenarifa17@gmail.com</a>
+              </span>
+              <button className="refresh-button" type="button" onClick={resetDemo}>Reset workspace</button>
+            </span>
           </footer>
         </div>
       </main>
     </div>
+  )
+}
+
+// ── Assessment gate ───────────────────────────────────────────────────────────
+
+function AssessmentGate() {
+  const { isComplete, assessment, bootstrapped } = useAssessment()
+  const [showAssessment, setShowAssessment] = useState(false)
+
+  // If not bootstrapped yet (still loading from backend), show spinner
+  if (!bootstrapped) {
+    return (
+      <div style={{ minHeight: '100vh', background: '#0c1119', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ color: '#52d6cc', fontFamily: '"Space Grotesk",sans-serif', fontSize: '14px' }}>Loading workspace…</div>
+      </div>
+    )
+  }
+
+  // Show assessment form if user explicitly requests it, or on first login
+  if (showAssessment || !isComplete) {
+    return (
+      <AssessmentPage
+        prefill={isComplete ? assessment : null}
+        onComplete={() => setShowAssessment(false)}
+      />
+    )
+  }
+
+  // Assessment complete — show main app
+  return (
+    <AppStateProvider>
+      <App onEditAssessment={() => setShowAssessment(true)} />
+    </AppStateProvider>
   )
 }
 
@@ -349,7 +411,7 @@ function AuthGate() {
     )
   }
   if (!isAuthenticated) return <AuthPage />
-  return <AppStateProvider><App /></AppStateProvider>
+  return <AssessmentProvider><AssessmentGate /></AssessmentProvider>
 }
 
 export default function AppWithProviders() {

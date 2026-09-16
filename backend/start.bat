@@ -2,7 +2,6 @@
 echo.
 echo  ╔══════════════════════════════════════════════════════╗
 echo  ║   AI Cyber Risk Optimizer — Backend (FastAPI)        ║
-echo  ║   SIH26105                                           ║
 echo  ╚══════════════════════════════════════════════════════╝
 echo.
 

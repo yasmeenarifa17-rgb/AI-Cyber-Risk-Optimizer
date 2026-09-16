@@ -4,11 +4,13 @@ export const riskLevel = (score) => score >= 70 ? 'Critical' : score >= 50 ? 'Hi
 export const totalExposure = (assets) => assets.reduce((total, asset) => total + expectedLoss(asset), 0)
 export const simulateInvestment = (controls, baselineRisk, baselineLoss) => {
 	const reduction = controls.reduce((sum, control) => sum + control.reduction, 0)
-	const riskReduction = Math.min(baselineRisk - 1, Math.round(reduction / 2))
+	const riskReduction = baselineRisk > 0 ? Math.min(Math.max(baselineRisk - 1, 0), Math.round(reduction / 2)) : 0
+	const projectedLoss = baselineRisk > 0 ? baselineLoss * (1 - riskReduction / baselineRisk) : baselineLoss
 	return {
 		reduction,
 		riskReduction,
 		projectedRisk: baselineRisk - riskReduction,
-		projectedLoss: Math.max(0, baselineLoss - reduction),
+		projectedLoss: Math.max(0, projectedLoss),
+		financialReduction: Math.max(0, baselineLoss - projectedLoss),
 	}
 }
